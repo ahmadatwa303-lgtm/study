@@ -42,6 +42,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
 
   <!-- Marked.js for Markdown Rendering -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -50,7 +51,6 @@
   <script src="https://unpkg.com/lucide@latest"></script>
 
   <style>
-    /* Sleek Custom Scrollbar */
     ::-webkit-scrollbar {
       width: 6px;
       height: 6px;
@@ -74,10 +74,16 @@
     .prose-custom h1, .prose-custom h2, .prose-custom h3 { color: #f8fafc; font-weight: 700; margin-top: 1rem; margin-bottom: 0.5rem; }
     .prose-custom ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.75rem; color: #cbd5e1; }
     .prose-custom code:not(.hljs) { background-color: #1e293b; color: #38bdf8; padding: 0.15rem 0.35rem; border-radius: 0.25rem; font-size: 0.875em; }
+    
+    /* Drag overlay highlight */
+    .drag-active {
+      border: 2px dashed #06b6d4 !important;
+      background-color: rgba(6, 182, 212, 0.08) !important;
+    }
   </style>
 </head>
 
-<body class="bg-[#0a0d14] text-slate-200 font-sans antialiased min-h-screen flex flex-col md:flex-row overflow-x-hidden">
+<body class="bg-[#0a0d14] text-slate-200 font-sans antialiased min-h-screen flex flex-col md:flex-row overflow-x-hidden" id="appBody">
 
   <!-- Mobile Top Header -->
   <div class="md:hidden flex items-center justify-between p-4 bg-[#111827] border-b border-cyber-border">
@@ -94,14 +100,13 @@
 
   <!-- Sidebar Component -->
   <aside id="sidebar" class="hidden md:flex flex-col w-72 bg-[#101622] border-r border-cyber-border shrink-0 min-h-screen p-5 transition-all duration-300 z-30">
-    <!-- Brand / Status -->
     <div class="flex items-center space-x-3 mb-6">
       <div class="p-2.5 bg-cyan-950/60 border border-cyan-500/30 rounded-xl text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
         <i data-lucide="shield-check" class="w-6 h-6"></i>
       </div>
       <div>
         <h1 class="font-bold text-white tracking-wider text-base">STUDY<span class="text-cyan-400">VAULT</span></h1>
-        <p class="text-[11px] text-cyan-500/80 font-mono tracking-wide uppercase">Offline • Local Storage</p>
+        <p class="text-[11px] text-cyan-500/80 font-mono tracking-wide uppercase">Universal File Support</p>
       </div>
     </div>
 
@@ -137,26 +142,28 @@
           <i data-lucide="plus" class="w-3.5 h-3.5"></i>
         </button>
       </div>
-      <div id="categoryNavList" class="space-y-1">
-        <!-- Rendered dynamically -->
-      </div>
+      <div id="categoryNavList" class="space-y-1"></div>
     </div>
 
-    <!-- Backup & Export Controls -->
+    <!-- Universal Upload & Backup Controls -->
     <div class="pt-4 border-t border-cyber-border space-y-2">
       <div class="flex items-center justify-between text-[11px] text-slate-400 font-mono px-1 pb-1">
-        <span>STORAGE USAGE</span>
+        <span>STORAGE USED</span>
         <span id="storageSize">0 KB</span>
       </div>
-      <button onclick="exportVaultJSON()" class="w-full flex items-center justify-center space-x-2 py-2 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-lg text-xs font-medium text-slate-200 transition">
-        <i data-lucide="download" class="w-3.5 h-3.5 text-cyan-400"></i>
-        <span>Export Backup (JSON)</span>
-      </button>
-      <label class="w-full flex items-center justify-center space-x-2 py-2 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-lg text-xs font-medium text-slate-200 cursor-pointer transition">
-        <i data-lucide="upload" class="w-3.5 h-3.5 text-emerald-400"></i>
-        <span>Import Backup</span>
-        <input type="file" id="importFileInput" accept=".json" class="hidden" onchange="importVaultJSON(event)">
+
+      <!-- Universal File Upload Button (Accepts any file!) -->
+      <label class="w-full flex items-center justify-center space-x-2 py-2.5 px-3 bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-500/40 rounded-lg text-xs font-semibold text-cyan-300 cursor-pointer transition shadow-sm">
+        <i data-lucide="file-up" class="w-4 h-4 text-cyan-400"></i>
+        <span>Upload Any File (Code / All)</span>
+        <input type="file" id="universalFileInput" multiple class="hidden" onchange="handleUniversalFileUpload(event)">
       </label>
+
+      <!-- Backup JSON Export -->
+      <button onclick="exportVaultJSON()" class="w-full flex items-center justify-center space-x-2 py-2 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-lg text-xs font-medium text-slate-300 transition">
+        <i data-lucide="download" class="w-3.5 h-3.5 text-cyan-400"></i>
+        <span>Export Vault Backup (JSON)</span>
+      </button>
     </div>
   </aside>
 
@@ -164,52 +171,52 @@
   <main class="flex-1 flex flex-col h-screen overflow-hidden">
     <!-- Top Action Bar -->
     <header class="h-16 border-b border-cyber-border px-6 flex items-center justify-between bg-[#0e131f]/90 backdrop-blur shrink-0 gap-4">
-      <!-- Search Bar -->
       <div class="relative flex-1 max-w-lg">
         <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
         <input 
           type="text" 
           id="searchInput" 
-          placeholder="Search notes, syntax, or tags (#network, #cpp)..." 
+          placeholder="Search by title, code syntax, or tags (#cpp, #python)..." 
           class="w-full pl-10 pr-4 py-2 bg-cyber-bg border border-cyber-border focus:border-cyan-500 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none transition shadow-inner"
           oninput="handleSearch(this.value)"
         >
       </div>
 
-      <!-- Action Button -->
       <div class="flex items-center space-x-3">
+        <!-- New Entry Button -->
         <button onclick="openNoteModal()" class="flex items-center space-x-2 bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition shadow-[0_0_15px_rgba(6,182,212,0.3)]">
           <i data-lucide="plus-circle" class="w-4 h-4"></i>
-          <span class="hidden sm:inline">New Study Entry</span>
+          <span class="hidden sm:inline">New Note / Code</span>
         </button>
       </div>
     </header>
 
-    <!-- Notes Dashboard -->
-    <div class="flex-1 overflow-y-auto p-6" id="notesScrollContainer">
-      <!-- Filter Breadcrumb Banner -->
+    <!-- Content Area (With Drag & Drop Zone Support) -->
+    <div class="flex-1 overflow-y-auto p-6 transition-all duration-200" id="dropArea">
+      <!-- Filter Banner -->
       <div class="flex items-center justify-between mb-6 pb-2 border-b border-cyber-border">
         <div class="flex items-center space-x-2">
           <span class="text-xs uppercase font-mono tracking-wider text-slate-400">Viewing:</span>
           <span id="activeFilterBadge" class="text-xs px-2.5 py-1 rounded bg-slate-800 text-cyan-300 font-medium">All Notes</span>
         </div>
-        <span class="text-xs text-slate-500 font-mono" id="resultsCount">Showing 0 entries</span>
+        <div class="flex items-center space-x-3">
+          <span class="text-xs text-slate-500 font-mono hidden md:inline"><i data-lucide="mouse-pointer" class="w-3 h-3 inline mr-1"></i>Drop any file here to import</span>
+          <span class="text-xs text-slate-500 font-mono" id="resultsCount">Showing 0 entries</span>
+        </div>
       </div>
 
       <!-- Notes Grid -->
-      <div id="notesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        <!-- Injected dynamically -->
-      </div>
+      <div id="notesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
 
       <!-- Empty State -->
       <div id="emptyState" class="hidden flex-col items-center justify-center text-center py-24">
         <div class="p-4 bg-slate-900/60 rounded-full border border-cyber-border mb-4 text-slate-500">
-          <i data-lucide="book-open" class="w-10 h-10 text-cyan-500/60"></i>
+          <i data-lucide="file-code-2" class="w-10 h-10 text-cyan-500/60"></i>
         </div>
-        <h3 class="text-lg font-semibold text-slate-200">No notes found</h3>
-        <p class="text-sm text-slate-500 max-w-sm mt-1">Add your first computer science note or choose another category from the sidebar.</p>
+        <h3 class="text-lg font-semibold text-slate-200">Vault is empty</h3>
+        <p class="text-sm text-slate-500 max-w-sm mt-1">Upload any code file (.cpp, .py, .c, .txt) or click the button below to add an entry.</p>
         <button onclick="openNoteModal()" class="mt-4 px-4 py-2 text-xs font-mono uppercase bg-cyan-950 text-cyan-400 border border-cyan-500/40 rounded-md hover:bg-cyan-900/50 transition">
-          + Create New Note
+          + Add First Entry
         </button>
       </div>
     </div>
@@ -231,66 +238,61 @@
       <form id="noteForm" onsubmit="saveNote(event)" class="flex-1 overflow-y-auto p-6 space-y-4">
         <input type="hidden" id="noteId">
 
-        <!-- Title -->
         <div>
           <label class="block text-xs font-mono uppercase tracking-wider text-slate-400 mb-1">Title / Topic *</label>
           <input 
             type="text" 
             id="formTitle" 
             required 
-            placeholder="e.g., Safe Pointer Management in C++ or TCP 3-Way Handshake" 
+            placeholder="e.g., Dijkstra Algorithm or Memory Management" 
             class="w-full px-3.5 py-2 bg-cyber-bg border border-cyber-border rounded-lg text-sm text-white focus:outline-none focus:border-cyan-500 font-sans"
           >
         </div>
 
-        <!-- Category & Format -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label class="block text-xs font-mono uppercase tracking-wider text-slate-400 mb-1">Category *</label>
-            <select id="formCategory" required class="w-full px-3.5 py-2 bg-cyber-bg border border-cyber-border rounded-lg text-sm text-white focus:outline-none focus:border-cyan-500">
-              <!-- Dynamically populated -->
-            </select>
+            <select id="formCategory" required class="w-full px-3.5 py-2 bg-cyber-bg border border-cyber-border rounded-lg text-sm text-white focus:outline-none focus:border-cyan-500"></select>
           </div>
           <div>
             <label class="block text-xs font-mono uppercase tracking-wider text-slate-400 mb-1">Syntax Highlighter</label>
             <select id="formLanguage" class="w-full px-3.5 py-2 bg-cyber-bg border border-cyber-border rounded-lg text-sm text-white focus:outline-none focus:border-cyan-500 font-mono">
-              <option value="markdown">Markdown / Documentation</option>
+              <option value="markdown">Markdown / Text / File</option>
               <option value="cpp">C++ (Systems Programming)</option>
-              <option value="python">Python (Scripts / Automation)</option>
-              <option value="bash">Bash / Linux Commands</option>
-              <option value="sql">SQL / Database Security</option>
+              <option value="c">C Language</option>
+              <option value="python">Python</option>
+              <option value="bash">Bash / Shell</option>
+              <option value="sql">SQL</option>
+              <option value="javascript">JavaScript</option>
             </select>
           </div>
         </div>
 
-        <!-- Tags -->
         <div>
           <label class="block text-xs font-mono uppercase tracking-wider text-slate-400 mb-1">Tags (Comma-separated)</label>
           <input 
             type="text" 
             id="formTags" 
-            placeholder="networking, pointers, defensive-coding, algorithms" 
+            placeholder="pointers, networking, algorithms, security" 
             class="w-full px-3.5 py-2 bg-cyber-bg border border-cyber-border rounded-lg text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
           >
         </div>
 
-        <!-- Code / Text Area -->
         <div>
           <div class="flex items-center justify-between mb-1">
             <label class="text-xs font-mono uppercase tracking-wider text-slate-400">Content / Code Snippet *</label>
-            <span class="text-[10px] text-slate-500 font-mono">Tab key indent supported</span>
+            <span class="text-[10px] text-slate-500 font-mono">Supports Tab key</span>
           </div>
           <textarea 
             id="formContent" 
             required 
             rows="10" 
-            placeholder="Type your notes or paste code snippet here..." 
+            placeholder="Write your notes, paste code, or content from uploaded files..." 
             class="w-full px-4 py-3 bg-[#0a0d14] border border-cyber-border rounded-lg text-sm text-slate-200 focus:outline-none focus:border-cyan-500 font-mono resize-y leading-relaxed"
             onkeydown="handleTextareaTab(event)"
           ></textarea>
         </div>
 
-        <!-- Modal Actions -->
         <div class="flex items-center justify-end space-x-3 pt-3 border-t border-cyber-border">
           <button type="button" onclick="closeNoteModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg transition">Cancel</button>
           <button type="submit" class="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold uppercase tracking-wider rounded-lg transition shadow-md">Save Note</button>
@@ -326,7 +328,7 @@
         <div class="flex justify-end mb-2">
           <button onclick="copySnippetContent()" class="text-xs flex items-center space-x-1.5 bg-slate-800/80 hover:bg-cyan-950 text-cyan-400 hover:text-cyan-300 border border-slate-700 px-3 py-1.5 rounded transition">
             <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-            <span id="copyBtnText">Copy Code</span>
+            <span id="copyBtnText">Copy Content</span>
           </button>
         </div>
         <div id="viewRenderedContent" class="prose-custom text-slate-200"></div>
@@ -370,19 +372,18 @@
 
   <!-- Script Logic -->
   <script>
-    // Safe Initial Sample Data (Zero Exploit Strings / Completely AV Safe)
     const SAFE_INITIAL_DATA = {
       categories: ["Cybersecurity", "C++ & Systems", "Networking", "Algorithms & DSA", "Linux & Shell"],
       notes: [
         {
           id: "seed-1",
-          title: "SQL Injection Prevention using Parameterized Queries",
+          title: "SQL Injection Defense with Parameterized Queries",
           category: "Cybersecurity",
           language: "python",
-          tags: ["secure-coding", "owasp", "sql", "backend"],
-          content: "# Always use parameterized queries / prepared statements\n# Never concatenate user input directly into SQL strings\n\nimport sqlite3\n\ndef authenticate_user(username, password_hash):\n    conn = sqlite3.connect('vault.db')\n    cursor = conn.cursor()\n    \n    # Safe parameterized query prevents query structure tampering:\n    query = \"SELECT id, email FROM users WHERE username = ? AND password = ?\"\n    cursor.execute(query, (username, password_hash))\n    \n    user = cursor.fetchone()\n    conn.close()\n    return user",
+          tags: ["secure-coding", "owasp", "sql"],
+          content: "# Always use parameterized queries / prepared statements\nimport sqlite3\n\ndef get_user(username, password_hash):\n    conn = sqlite3.connect('vault.db')\n    cursor = conn.cursor()\n    # Safe prepared statement:\n    cursor.execute('SELECT id FROM users WHERE username = ? AND password = ?', (username, password_hash))\n    return cursor.fetchone()",
           isStarred: true,
-          updatedAt: new Date(Date.now() - 3600000 * 2).toISOString()
+          updatedAt: new Date().toISOString()
         },
         {
           id: "seed-2",
@@ -390,19 +391,9 @@
           category: "C++ & Systems",
           language: "cpp",
           tags: ["memory-safety", "pointers", "cpp20"],
-          content: "// Best practice: Always prefer std::unique_ptr for single resource ownership\n#include <iostream>\n#include <memory>\n\nclass NetworkSocket {\npublic:\n    NetworkSocket()  { std::cout << \"Socket opened.\\n\"; }\n    ~NetworkSocket() { std::cout << \"Socket closed safely without memory leaks.\\n\"; }\n    void sendPing()  { std::cout << \"Ping sent.\\n\"; }\n};\n\nint main() {\n    // std::make_unique guarantees exception-safe memory allocation\n    auto socket = std::make_unique<NetworkSocket>();\n    socket->sendPing();\n    \n    // Ownership is transferred cleanly via std::move\n    auto movedSocket = std::move(socket);\n    return 0;\n}",
+          content: "#include <iostream>\n#include <memory>\n\nclass Resource {\npublic:\n    Resource()  { std::cout << 'Resource allocated\\n'; }\n    ~Resource() { std::cout << 'Cleaned up automatically without leak\\n'; }\n};\n\nint main() {\n    auto safePtr = std::make_unique<Resource>();\n    return 0;\n}",
           isStarred: true,
-          updatedAt: new Date(Date.now() - 3600000 * 24).toISOString()
-        },
-        {
-          id: "seed-3",
-          title: "Essential Wireshark Network Analysis Filters",
-          category: "Networking",
-          language: "bash",
-          tags: ["wireshark", "pcap", "tshark", "protocols"],
-          content: "# Wireshark and Tshark filters for traffic analysis:\n\n# Filter TCP 3-Way Handshake SYN flag with no ACK:\ntcp.flags.syn == 1 and tcp.flags.ack == 0\n\n# Filter long DNS responses (useful for detecting tunneling):\ndns.flags.response == 1 and dns.qry.name.len > 30\n\n# Filter specific subnet communications:\nip.src == 192.168.1.0/24 and tcp.port == 443",
-          isStarred: false,
-          updatedAt: new Date(Date.now() - 3600000 * 48).toISOString()
+          updatedAt: new Date().toISOString()
         }
       ]
     };
@@ -415,13 +406,14 @@
       activeViewingNoteId: null
     };
 
-    const STORAGE_KEY = 'study_vault_data_safe_v2';
+    const STORAGE_KEY = 'study_vault_data_safe_v3';
 
     function initApp() {
       loadFromStorage();
       renderSidebarCategories();
       renderNotes();
       updateMetrics();
+      setupDragAndDrop();
       lucide.createIcons();
 
       document.getElementById('mobileMenuBtn').addEventListener('click', () => {
@@ -471,6 +463,144 @@
       document.getElementById('storageSize').textContent = `${kb} KB`;
     }
 
+    // Map file extensions to code language & category
+    function detectLanguageFromFilename(filename) {
+      const ext = filename.split('.').pop().toLowerCase();
+      switch (ext) {
+        case 'cpp': case 'cc': case 'cxx': case 'hpp': case 'h': return { lang: 'cpp', cat: 'C++ & Systems' };
+        case 'c': return { lang: 'c', cat: 'C++ & Systems' };
+        case 'py': case 'pyw': return { lang: 'python', cat: 'Cybersecurity' };
+        case 'sh': case 'bash': case 'zsh': return { lang: 'bash', cat: 'Linux & Shell' };
+        case 'sql': return { lang: 'sql', cat: 'Cybersecurity' };
+        case 'js': case 'ts': case 'json': return { lang: 'javascript', cat: 'Algorithms & DSA' };
+        case 'md': return { lang: 'markdown', cat: 'General' };
+        default: return { lang: 'markdown', cat: 'General' };
+      }
+    }
+
+    // UNIVERSAL FILE HANDLER (Handles Code, Text, Images, PDF, and JSON backups)
+    async function processSingleFile(file) {
+      const fileName = file.name;
+      const ext = fileName.split('.').pop().toLowerCase();
+
+      // Case 1: JSON Vault Backup
+      if (ext === 'json') {
+        try {
+          const text = await file.text();
+          const parsed = JSON.parse(text);
+          if (parsed.vaultVersion && Array.isArray(parsed.notes)) {
+            const doRestore = confirm(`"${fileName}" appears to be a Vault Backup.\nPress OK to restore/merge backup, or Cancel to import as a standard file.`);
+            if (doRestore) {
+              const currentIds = new Set(state.notes.map(n => n.id));
+              const newNotes = parsed.notes.filter(n => !currentIds.has(n.id));
+              state.notes = [...state.notes, ...newNotes];
+              state.categories = Array.from(new Set([...state.categories, ...(parsed.categories || [])]));
+              persistStorage();
+              renderSidebarCategories();
+              renderNotes();
+              showToast(`Restored ${newNotes.length} notes from backup`);
+              return;
+            }
+          }
+        } catch (e) {
+          // not a backup json, proceed to read normally
+        }
+      }
+
+      // Case 2: Images (PNG, JPG, SVG, GIF, WEBP)
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const dataUrl = e.target.result;
+          const imageMarkdown = `### ${fileName}\n\n![${fileName}](${dataUrl})\n\n*(Image uploaded: ${(file.size / 1024).toFixed(1)} KB)*`;
+          createNoteFromFile(fileName, imageMarkdown, 'markdown', ['image-upload']);
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+
+      // Case 3: Code and Text Files (.cpp, .py, .c, .txt, .sh, .html, etc.)
+      const isText = file.type.startsWith('text/') || ['cpp', 'c', 'py', 'sh', 'sql', 'js', 'ts', 'java', 'cs', 'go', 'rs', 'md', 'json', 'log'].includes(ext);
+
+      if (isText) {
+        const content = await file.text();
+        const detected = detectLanguageFromFilename(fileName);
+        createNoteFromFile(fileName, content, detected.lang, [ext, 'imported-file'], detected.cat);
+      } else {
+        // Case 4: Any other binary file (PDF, Docs, Zip) -> Save as Downloadable Data-URI Attachment
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const dataUrl = e.target.result;
+          const downloadContent = `### Stored File: ${fileName}\n\n- **File Type:** ${file.type || 'Binary'}\n- **Size:** ${(file.size / 1024).toFixed(1)} KB\n\n[📥 Click Here to Download ${fileName}](${dataUrl})`;
+          createNoteFromFile(fileName, downloadContent, 'markdown', ['file-attachment', ext]);
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function createNoteFromFile(title, content, language, tags, preferredCat = 'General') {
+      let targetCategory = preferredCat;
+      if (!state.categories.includes(targetCategory)) {
+        if (!state.categories.includes('General')) {
+          state.categories.push('General');
+        }
+        targetCategory = state.categories.includes(preferredCat) ? preferredCat : (state.categories[0] || 'General');
+      }
+
+      const newNote = {
+        id: 'file_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        title: title,
+        category: targetCategory,
+        language: language,
+        tags: tags,
+        content: content,
+        isStarred: false,
+        updatedAt: new Date().toISOString()
+      };
+
+      state.notes.unshift(newNote);
+      persistStorage();
+      renderSidebarCategories();
+      renderNotes();
+      showToast(`Imported: ${title}`);
+    }
+
+    function handleUniversalFileUpload(event) {
+      const files = event.target.files;
+      if (!files || files.length === 0) return;
+      Array.from(files).forEach(file => processSingleFile(file));
+      event.target.value = '';
+    }
+
+    // Drag and Drop Entire File Zone
+    function setupDragAndDrop() {
+      const dropArea = document.getElementById('dropArea');
+
+      ['dragenter', 'dragover'].forEach(name => {
+        window.addEventListener(name, (e) => {
+          e.preventDefault();
+          dropArea.classList.add('drag-active');
+        }, false);
+      });
+
+      ['dragleave', 'drop'].forEach(name => {
+        window.addEventListener(name, (e) => {
+          e.preventDefault();
+          dropArea.classList.remove('drag-active');
+        }, false);
+      });
+
+      window.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files && files.length > 0) {
+          Array.from(files).forEach(file => processSingleFile(file));
+        }
+      });
+    }
+
+    // Standard Renderers
     function renderSidebarCategories() {
       const container = document.getElementById('categoryNavList');
       container.innerHTML = '';
@@ -504,7 +634,6 @@
 
     function setFilter(filterType) {
       state.currentFilter = filterType;
-      
       const badge = document.getElementById('activeFilterBadge');
       if (filterType === 'all') badge.textContent = 'All Notes';
       else if (filterType === 'starred') badge.textContent = 'Pinned Notes';
@@ -597,7 +726,7 @@
                 </div>
               </div>
               
-              <h3 class="font-bold text-white text-base tracking-tight mb-2 group-hover:text-cyan-400 transition">
+              <h3 class="font-bold text-white text-base tracking-tight mb-2 group-hover:text-cyan-400 transition truncate">
                 ${escapeHtml(note.title)}
               </h3>
 
@@ -611,7 +740,7 @@
                 ${tagsHtml}
               </div>
               <div class="flex items-center justify-between text-[11px] font-mono text-slate-500 mt-1">
-                <span class="uppercase tracking-wider">${escapeHtml(note.language || 'markdown')}</span>
+                <span class="uppercase tracking-wider">${escapeHtml(note.language || 'text')}</span>
                 <span>${formattedDate}</span>
               </div>
             </div>
@@ -635,7 +764,7 @@
       if (id) {
         const note = state.notes.find(n => n.id === id);
         if (!note) return;
-        document.getElementById('modalTitle').innerHTML = '<i data-lucide="edit-2" class="w-5 h-5 text-cyan-400"></i><span>Edit Note</span>';
+        document.getElementById('modalTitle').innerHTML = '<i data-lucide="edit-2" class="w-5 h-5 text-cyan-400"></i><span>Edit Entry</span>';
         document.getElementById('noteId').value = note.id;
         document.getElementById('formTitle').value = note.title;
         document.getElementById('formCategory').value = note.category;
@@ -667,37 +796,27 @@
       const content = document.getElementById('formContent').value;
       const rawTags = document.getElementById('formTags').value;
 
-      const tags = rawTags.split(',')
-        .map(t => t.trim().toLowerCase())
-        .filter(t => t.length > 0);
+      const tags = rawTags.split(',').map(t => t.trim().toLowerCase()).filter(t => t.length > 0);
 
       if (id) {
         const idx = state.notes.findIndex(n => n.id === id);
         if (idx !== -1) {
           state.notes[idx] = {
             ...state.notes[idx],
-            title,
-            category,
-            language,
-            tags,
-            content,
+            title, category, language, tags, content,
             updatedAt: new Date().toISOString()
           };
-          showToast("Entry updated successfully");
+          showToast("Entry updated");
         }
       } else {
         const newNote = {
           id: 'note_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-          title,
-          category,
-          language,
-          tags,
-          content,
+          title, category, language, tags, content,
           isStarred: false,
           updatedAt: new Date().toISOString()
         };
         state.notes.unshift(newNote);
-        showToast("New note saved to vault");
+        showToast("Note stored to vault");
       }
 
       persistStorage();
@@ -708,7 +827,7 @@
 
     function deleteNote(id, event) {
       if (event) event.stopPropagation();
-      if (!confirm("Are you sure you want to delete this entry?")) return;
+      if (!confirm("Delete this entry?")) return;
 
       state.notes = state.notes.filter(n => n.id !== id);
       persistStorage();
@@ -825,13 +944,13 @@
         const btnText = document.getElementById('copyBtnText');
         btnText.textContent = "Copied!";
         showToast("Copied to clipboard");
-        setTimeout(() => { btnText.textContent = "Copy Code"; }, 2000);
+        setTimeout(() => { btnText.textContent = "Copy Content"; }, 2000);
       });
     }
 
     function exportVaultJSON() {
       const exportObject = {
-        vaultVersion: "2.0",
+        vaultVersion: "3.0",
         exportTimestamp: new Date().toISOString(),
         categories: state.categories,
         notes: state.notes
@@ -839,55 +958,13 @@
 
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObject, null, 2));
       const downloadAnchor = document.createElement('a');
-      const filename = `study_vault_backup_${new Date().toISOString().slice(0, 10)}.json`;
-      
       downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", filename);
+      downloadAnchor.setAttribute("download", `study_vault_backup_${new Date().toISOString().slice(0, 10)}.json`);
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       downloadAnchor.remove();
 
       showToast("Backup exported successfully");
-    }
-
-    function importVaultJSON(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          const importedData = JSON.parse(e.target.result);
-
-          if (!importedData.notes || !Array.isArray(importedData.notes)) {
-            throw new Error("Invalid structure.");
-          }
-
-          const mode = confirm("Press OK to MERGE this backup with your notes, or CANCEL to OVERWRITE completely.");
-
-          if (mode) {
-            const currentIds = new Set(state.notes.map(n => n.id));
-            const newNotes = importedData.notes.filter(n => !currentIds.has(n.id));
-            state.notes = [...state.notes, ...newNotes];
-
-            const mergedCategories = Array.from(new Set([...state.categories, ...(importedData.categories || [])]));
-            state.categories = mergedCategories;
-            showToast(`Merged ${newNotes.length} notes`);
-          } else {
-            state.notes = importedData.notes;
-            state.categories = importedData.categories || SAFE_INITIAL_DATA.categories;
-            showToast("Backup restored completely");
-          }
-
-          persistStorage();
-          renderSidebarCategories();
-          renderNotes();
-        } catch (err) {
-          alert("Error: Invalid JSON backup file.");
-        }
-      };
-      reader.readAsText(file);
-      event.target.value = '';
     }
 
     function handleTextareaTab(e) {
